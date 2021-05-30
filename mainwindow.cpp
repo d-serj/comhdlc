@@ -25,11 +25,19 @@ MainWindow::MainWindow(QWidget *parent)
     {
         ui->comboBox->addItem(info.portName());
     }
+
+    ui->buttonDisconnect->setEnabled(false);
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+
+    if (hdlc != nullptr)
+    {
+        delete hdlc;
+        hdlc = nullptr;
+    }
 }
 
 void MainWindow::on_buttonConnect_clicked()
@@ -37,6 +45,21 @@ void MainWindow::on_buttonConnect_clicked()
     if (hdlc == nullptr)
     {
         hdlc = new comhdlc(ui->comboBox->currentText());
+
+        if (hdlc->is_connected())
+        {
+            ui->buttonConnect->setEnabled(false);
+            ui->buttonDisconnect->setEnabled(true);
+            ui->comboBox->setEnabled(false);
+        }
+        else
+        {
+            ui->buttonConnect->setEnabled(true);
+            ui->buttonDisconnect->setEnabled(false);
+            ui->comboBox->setEnabled(true);
+            delete hdlc;
+            hdlc = nullptr;
+        }
     }
 }
 
@@ -46,6 +69,9 @@ void MainWindow::on_buttonDisconnect_clicked()
     {
         delete hdlc;
         hdlc = nullptr;
+        ui->buttonDisconnect->setEnabled(false);
+        ui->buttonConnect->setEnabled(true);
+        ui->comboBox->setEnabled(true);
     }
 }
 
