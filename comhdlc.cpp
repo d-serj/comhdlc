@@ -41,11 +41,24 @@ comhdlc::comhdlc(QString comName)
         qDebug() << comName << " is opened";
         minihdlc_init(send_byte, process_buffer);
         connect(serial_port, &QSerialPort::readyRead, this, &comhdlc::comport_data_available);
+
+        timer = new QTimer(this);
+        connect(timer, &QTimer::timeout, this, &comhdlc::send_handshake);
+        const quint16 timeout_ms = 100;
+        timer->start(timeout_ms);
+        qDebug() << "QTimer has started with " << timeout_ms << " ms timeout";
     }
 }
 
 comhdlc::~comhdlc()
 {
+    if (timer != nullptr)
+    {
+        timer->stop();
+        delete timer;
+        timer = nullptr;
+    }
+
     if (serial_port == nullptr)
     {
         return;
@@ -59,6 +72,16 @@ comhdlc::~comhdlc()
 
     delete serial_port;
     serial_port = nullptr;
+}
+
+bool comhdlc::is_connected(void)
+{
+    if (serial_port != nullptr)
+    {
+        return serial_port->isOpen();
+    }
+
+    return false;
 }
 
 void comhdlc::comport_data_available()
@@ -91,4 +114,12 @@ void comhdlc::process_buffer(const uint8_t *buff, uint16_t buff_len)
 void comhdlc::send_data(const QByteArray &data)
 {
     minihdlc_send_frame((const uint8_t*)data.constData(), data.size());
+}
+
+void comhdlc::send_handshake()
+{
+    Q_ASSERT(timer != nullptr);
+    quint8 raw[] = { 0xBE, 0xEF };
+    QByteArray data(reinterpret_cast<char*>(raw), 2);
+    send_data(data);
 }
