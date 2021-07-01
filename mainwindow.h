@@ -25,10 +25,18 @@ private slots:
 
     void on_buttonConnect_clicked();
 
-    void on_lineEdit_returnPressed();
+    void on_file_dialog_clicked();
+
+    void comhdlc_device_connected(bool connected);
+
+    void on_buttonSendFile_clicked();
 
 private:
+    void log_message(const QString &string);
+
     Ui::MainWindow *ui = nullptr;
     comhdlc *hdlc      = nullptr;
+    QString file_name  = "";
+    QByteArray file_opened;
 };
 #endif // MAINWINDOW_H

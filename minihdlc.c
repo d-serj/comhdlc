@@ -123,7 +123,7 @@ void minihdlc_char_receiver(uint8_t data)
 }
 
 /* Wrap given data in HDLC frame and send it out byte at a time*/
-void minihdlc_send_frame(const uint8_t *frame_buffer, uint8_t frame_length)
+void minihdlc_send_frame(const uint8_t *frame_buffer, uint16_t frame_length)
 {
 	uint8_t data;
 	uint16_t fcs = CRC16_CCITT_INIT_VAL;
@@ -139,7 +139,7 @@ void minihdlc_send_frame(const uint8_t *frame_buffer, uint8_t frame_length)
 			minihdlc_sendchar((uint8_t) CONTROL_ESCAPE_OCTET);
 			data ^= INVERT_OCTET;
 		}
-		minihdlc_sendchar((uint8_t) data);
+        minihdlc_sendchar(data);
 		frame_length--;
 	}
 	data = low(fcs);
@@ -148,7 +148,7 @@ void minihdlc_send_frame(const uint8_t *frame_buffer, uint8_t frame_length)
 		minihdlc_sendchar((uint8_t) CONTROL_ESCAPE_OCTET);
 		data ^= (uint8_t) INVERT_OCTET;
 	}
-	minihdlc_sendchar((uint8_t) data);
+    minihdlc_sendchar(data);
 	data = high(fcs);
     if ((data == CONTROL_ESCAPE_OCTET) || (data == FRAME_BOUNDARY_OCTET))
     {
@@ -180,7 +180,7 @@ static void buffer_push(uint8_t data)
 }
 
 void minihdlc_send_frame_to_buffer(const uint8_t *frame_buffer,
-    uint8_t frame_length)
+    uint16_t frame_length)
 {
 	mhst.sendchar_function = buffer_push;
 	buffer_init();
