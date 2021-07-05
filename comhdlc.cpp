@@ -4,7 +4,6 @@
 #include <QSerialPort>
 #include <QDebug>
 #include <QDataStream>
-#include <QVector>
 #include <QByteArray>
 #include <QByteArrayList>
 
@@ -95,18 +94,27 @@ void comhdlc::transfer_file(const QByteArray &file)
 
     QDataStream to_send(&file_send, QIODevice::ReadOnly);
     to_send.setByteOrder(QDataStream::LittleEndian);
-    QByteArray buffer(MINIHDLC_MAX_FRAME_LENGTH, '\0');
 
-    quint16 i = 0;
-    for (; (i < MINIHDLC_MAX_FRAME_LENGTH) && !to_send.atEnd(); ++i)
+    QByteArrayList file_chunks;
+
+    while (!to_send.atEnd())
     {
-        char byte = 0;
-        to_send.readRawData(&byte, 1);
-        buffer.insert(i, byte);
-    }
+        QByteArray buffer(MINIHDLC_MAX_FRAME_LENGTH, '\0');
 
-    QVector<QByteArray> file_chunks;
-    //file_chunks.push_back()
+        for (quint16 i = 0; i < MINIHDLC_MAX_FRAME_LENGTH; ++i)
+        {
+            char byte = 0;
+            const qint16 bytes_read = to_send.readRawData(&byte, 1);
+            if (bytes_read <= 0)
+            {
+                break;
+            }
+
+            buffer.insert(i, byte);
+        }
+
+        file_chunks.append(buffer);
+    }
 
     const char answer[] = { eComhdlcFrameType_ACK, eCmdWriteFile };
     QByteArray buff(answer, 2);
@@ -134,7 +142,7 @@ void comhdlc::comport_data_available()
 
 void comhdlc::comport_bytes_written(quint64 bytes)
 {
-    if (send_buffer.count() == bytes)
+    if (static_cast<quint64>(send_buffer.size()) == bytes)
     {
         qDebug() << "Bytes written" << bytes;
 

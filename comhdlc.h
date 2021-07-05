@@ -36,6 +36,7 @@ private:
     QString com_port_name;
     QTimer *timer = nullptr;
     QByteArray file_send;
+    QByteArray send_buffer;
 
     static bool answer_received;
     static QByteArray expected_answer;
