@@ -13,7 +13,7 @@ public:
     comhdlc(QString comName);
     ~comhdlc();
     void send_data(const QByteArray &data);
-    void transfer_file(const QByteArray &file);
+    void transfer_file(const QByteArray &file, QString file_name);
     bool is_comport_connected(void);
 
 private:
@@ -29,7 +29,8 @@ private:
     enum eComHdlcCommands
     {
         eCmdWriteFile            = 1,
-        eComHdlcAnswer_HandShake = 2,
+        eCmdWriteFileFinish      = 2,
+        eComHdlcAnswer_HandShake = 3,
     };
 
 
@@ -37,6 +38,8 @@ private:
     QTimer *timer = nullptr;
     QByteArray file_send;
     QByteArray send_buffer;
+    QByteArrayList file_chunks;
+    quint32 file_chunk_current;
 
     static bool answer_received;
     static QByteArray expected_answer;
@@ -46,8 +49,9 @@ private:
     static void send_byte(uint8_t data);
     static void process_buffer(const uint8_t* buff, uint16_t buff_len);
     void send_handshake(void);
+    void file_send_routine(void);
     void send_command(uint8_t command);
-    void set_expected_answer(const QByteArray &answer);
+    void set_expected_answer(const char *answer, qsizetype answer_size);
 
 private slots:
     void comport_data_available();

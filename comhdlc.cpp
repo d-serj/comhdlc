@@ -25,6 +25,8 @@ comhdlc::comhdlc(QString comName)
     if (serial_port->isOpen())
     {
         qDebug() << "Serial port " << serial_port->portName() << " is already opened";
+        delete serial_port;
+        serial_port = nullptr;
         return;
     }
 
@@ -34,6 +36,8 @@ comhdlc::comhdlc(QString comName)
     {
         qDebug() << com_port_name << " cannot be opened";
         qDebug() << "Error: " << serial_port->error();
+        delete serial_port;
+        serial_port = nullptr;
     }
     else
     {
@@ -87,16 +91,16 @@ bool comhdlc::is_comport_connected(void)
     return false;
 }
 
-void comhdlc::transfer_file(const QByteArray &file)
+void comhdlc::transfer_file(const QByteArray &file, QString file_name)
 {
+    file_chunks.clear();
     file_send.clear();
     file_send = file;
 
     QDataStream to_send(&file_send, QIODevice::ReadOnly);
     to_send.setByteOrder(QDataStream::LittleEndian);
 
-    QByteArrayList file_chunks;
-
+    // Split file to chunks
     while (!to_send.atEnd())
     {
         QByteArray buffer(MINIHDLC_MAX_FRAME_LENGTH, '\0');
@@ -117,11 +121,31 @@ void comhdlc::transfer_file(const QByteArray &file)
     }
 
     const char answer[] = { eComhdlcFrameType_ACK, eCmdWriteFile };
-    QByteArray buff(answer, 2);
-    set_expected_answer(buff);
+    set_expected_answer(answer, sizeof(answer));
 
     send_command(eCmdWriteFile);
-    //send_data(buffer);
+
+    Q_ASSERT(timer != nullptr);
+    Q_ASSERT(!timer->isActive());
+
+    const bool disconnected = disconnect(timer, &QTimer::timeout, this, &comhdlc::send_handshake);
+    Q_ASSERT(disconnected);
+
+    connect(timer, &QTimer::timeout, this, &comhdlc::file_send_routine);
+    timer->start(5);
+    file_chunk_current = 0;
+}
+
+void comhdlc::file_send_routine()
+{
+    if (answer_received)
+    {
+        ++file_chunk_current;
+    }
+
+    send_data(file_chunks.at(file_chunk_current));
+
+    // send_data(buffer);
     // wait for response
     // send file name and file size
     // send chunk
@@ -162,6 +186,7 @@ void comhdlc::send_byte(uint8_t data)
 void comhdlc::process_buffer(const uint8_t *buff, uint16_t buff_len)
 {
     Q_ASSERT(buff != nullptr);
+    Q_ASSERT(buff_len > 0);
 
     QByteArray answer((const char*)buff, buff_len);
 
@@ -173,10 +198,8 @@ void comhdlc::process_buffer(const uint8_t *buff, uint16_t buff_len)
         answer_received = true;
         expected_answer.clear();
     }
-    else
-    {
-        serial_port->clear(QSerialPort::AllDirections);
-    }
+
+    serial_port->clear(QSerialPort::AllDirections);
 }
 
 void comhdlc::send_data(const QByteArray &data)
@@ -201,8 +224,7 @@ void comhdlc::send_handshake()
     if (answer_received == false)
     {
         const char ans[] = { eComhdlcFrameType_ACK, eComHdlcAnswer_HandShake };
-        QByteArray answer(ans, 2);
-        set_expected_answer(answer);
+        set_expected_answer(ans, sizeof(ans));
     }
     else
     {
@@ -217,12 +239,15 @@ void comhdlc::send_handshake()
 
 void comhdlc::send_command(uint8_t command)
 {
-    const QByteArray data((const char*)&command, 1);
+    QByteArray data(2, '\0');
+    data[0] = eComhdlcFrameType_REQ;
+    data[1] = command;
+
     send_data(data);
 }
 
-void comhdlc::set_expected_answer(const QByteArray &answer)
+void comhdlc::set_expected_answer(const char *answer, qsizetype answer_size)
 {
     expected_answer.clear();
-    expected_answer = answer;
+    expected_answer.append(answer, answer_size);
 }
