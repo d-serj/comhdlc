@@ -28,14 +28,17 @@ find_package(QT NAMES Qt5 COMPONENTS Widgets SerialPort REQUIRED)
 find_package(Qt${QT_VERSION_MAJOR} COMPONENTS Widgets SerialPort REQUIRED)
 
 set(PROJECT_SOURCES
-        main.cpp
-        mainwindow.cpp
-        comhdlc.cpp
-        mainwindow.h
-        mainwindow.ui
-        minihdlc.c
-        minihdlc.h
-        comhdlc.h
+        src/main.cpp
+        src/mainwindow.cpp
+        src/comhdlc.cpp
+        src/mainwindow.h
+        src/mainwindow.ui
+        src/minihdlc.c
+        src/minihdlc.h
+        src/comhdlc.h
+        src/tinyframe/TinyFrame.c
+        src/tinyframe/TinyFrame.h
+        src/tinyframe/TF_Config.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
@@ -55,3 +58,4 @@ else()
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets Qt${QT_VERSION_MAJOR}::SerialPort)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/src)

@@ -6,11 +6,11 @@
 #include <QDataStream>
 #include <QByteArray>
 #include <QByteArrayList>
+#include <tinyframe/TinyFrame.h>
 
-QSerialPort* comhdlc::serial_port = nullptr;
-bool comhdlc::answer_received     = false;
+QSerialPort *comhdlc::serial_port = nullptr;
 quint64 comhdlc::bytes_written    = 0;
-QByteArray comhdlc::expected_answer;
+TinyFrame *comhdlc::tf            = nullptr;
 
 comhdlc::comhdlc(QString comName)
     : com_port_name(comName)
@@ -44,6 +44,7 @@ comhdlc::comhdlc(QString comName)
         qDebug() << com_port_name << " is opened";
         serial_port->clear(QSerialPort::AllDirections);
         minihdlc_init(send_byte, process_buffer);
+        tf = TF_Init(TF_MASTER);
         connect(serial_port, &QSerialPort::readyRead, this, &comhdlc::comport_data_available);
         connect(serial_port, &QSerialPort::errorOccurred, this, &comhdlc::comport_error_handler);
         connect(serial_port, &QSerialPort::bytesWritten, this, &comhdlc::comport_bytes_written);
@@ -65,6 +66,12 @@ comhdlc::~comhdlc()
         timer = nullptr;
     }
 
+    if (tf != nullptr)
+    {
+        TF_DeInit(tf);
+        tf = nullptr;
+    }
+
     if (serial_port == nullptr)
     {
         return;
@@ -81,7 +88,7 @@ comhdlc::~comhdlc()
     serial_port = nullptr;
 }
 
-bool comhdlc::is_comport_connected(void)
+bool comhdlc::is_comport_connected(void) const
 {
     if (serial_port != nullptr)
     {
@@ -120,9 +127,6 @@ void comhdlc::transfer_file(const QByteArray &file, QString file_name)
         file_chunks.append(buffer);
     }
 
-    const char answer[] = { eComhdlcFrameType_ACK, eCmdWriteFile };
-    set_expected_answer(answer, sizeof(answer));
-
     send_command(eCmdWriteFile);
 
     Q_ASSERT(timer != nullptr);
@@ -138,12 +142,9 @@ void comhdlc::transfer_file(const QByteArray &file, QString file_name)
 
 void comhdlc::file_send_routine()
 {
-    if (answer_received)
-    {
-        ++file_chunk_current;
-    }
-
     send_data(file_chunks.at(file_chunk_current));
+
+    const char answer[] = { eComhdlcFrameType_ACK, eCmdWriteFile };
 
     // send_data(buffer);
     // wait for response
@@ -166,11 +167,8 @@ void comhdlc::comport_data_available()
 
 void comhdlc::comport_bytes_written(quint64 bytes)
 {
-    if (static_cast<quint64>(send_buffer.size()) == bytes)
-    {
-        qDebug() << "Bytes written" << bytes;
-
-    }
+    qDebug() << "Bytes need to be written: " << send_buffer.size()
+             << ". Originally written bytes" << bytes;
 }
 
 void comhdlc::comport_error_handler(QSerialPort::SerialPortError serialPortError)
@@ -188,16 +186,9 @@ void comhdlc::process_buffer(const uint8_t *buff, uint16_t buff_len)
     Q_ASSERT(buff != nullptr);
     Q_ASSERT(buff_len > 0);
 
-    QByteArray answer((const char*)buff, buff_len);
+    qDebug() << "Answer received. Answer len: " << buff_len;
 
-    qDebug() << "Expected answer: " << expected_answer;
-    qDebug() << "Answer received: " << answer;
-
-    if (expected_answer == answer)
-    {
-        answer_received = true;
-        expected_answer.clear();
-    }
+    TF_Accept(tf, buff, buff_len);
 
     serial_port->clear(QSerialPort::AllDirections);
 }
@@ -214,40 +205,43 @@ void comhdlc::send_data(const QByteArray &data)
 
     send_buffer = data;
 
-    minihdlc_send_frame(reinterpret_cast<const uint8_t*>(data.constData()), data_size);
+    TF_SendSimple(tf, 1, reinterpret_cast<const uint8_t*>(data.constData()), data_size);
 }
 
 void comhdlc::send_handshake()
 {
     Q_ASSERT(timer != nullptr);
 
-    if (answer_received == false)
-    {
-        const char ans[] = { eComhdlcFrameType_ACK, eComHdlcAnswer_HandShake };
-        set_expected_answer(ans, sizeof(ans));
-    }
-    else
-    {
-        timer->stop();
-        answer_received = false;
-    }
-
     const quint8 raw[] = { 0xBE, 0xEF };
     QByteArray data = QByteArray::fromRawData((const char*)raw, sizeof(raw));
-    send_data(data);
+    TF_QuerySimple(tf,
+                   eComHdlcAnswer_HandShake,
+                   &raw,
+                   sizeof (raw),
+                   [](TinyFrame *tf, TF_Msg *msg)
+                   {
+                      Q_UNUSED(tf);
+                      Q_UNUSED(msg);
+                      return TF_CLOSE;
+                   },
+                   0
+    );
 }
 
 void comhdlc::send_command(uint8_t command)
 {
-    QByteArray data(2, '\0');
-    data[0] = eComhdlcFrameType_REQ;
-    data[1] = command;
+    QByteArray data(1, '\0');
+    data[0] = command;
 
     send_data(data);
 }
 
-void comhdlc::set_expected_answer(const char *answer, qsizetype answer_size)
+extern "C" void TF_WriteImpl(TinyFrame *tf, const uint8_t *buff, uint32_t len);
+
+void TF_WriteImpl(TinyFrame *tf, const uint8_t *buff, uint32_t len)
 {
-    expected_answer.clear();
-    expected_answer.append(answer, answer_size);
+    Q_UNUSED(tf);
+    Q_ASSERT(buff != nullptr);
+
+    minihdlc_send_frame(buff, len);
 }

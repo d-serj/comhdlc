@@ -6,6 +6,8 @@
 #include <QObject>
 #include <QTimer>
 
+#include <tinyframe/TinyFrame.h>
+
 class comhdlc : public QObject
 {
     Q_OBJECT
@@ -14,7 +16,7 @@ public:
     ~comhdlc();
     void send_data(const QByteArray &data);
     void transfer_file(const QByteArray &file, QString file_name);
-    bool is_comport_connected(void);
+    bool is_comport_connected(void) const;
 
 private:
 
@@ -41,8 +43,8 @@ private:
     QByteArrayList file_chunks;
     quint32 file_chunk_current;
 
-    static bool answer_received;
-    static QByteArray expected_answer;
+
+    static TinyFrame *tf;
     static quint64 bytes_written;
     static QSerialPort *serial_port;
 
@@ -51,7 +53,8 @@ private:
     void send_handshake(void);
     void file_send_routine(void);
     void send_command(uint8_t command);
-    void set_expected_answer(const char *answer, qsizetype answer_size);
+
+    /** Callbacks for TinyFrame */
 
 private slots:
     void comport_data_available();

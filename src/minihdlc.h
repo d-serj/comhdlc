@@ -13,7 +13,7 @@ typedef void (*sendchar_type)(uint8_t data);
 typedef void (*frame_handler_type)(const uint8_t *frame_buffer,
               uint16_t frame_length);
 
-#define MINIHDLC_MAX_FRAME_LENGTH 512
+#define MINIHDLC_MAX_FRAME_LENGTH 1024
 
 void minihdlc_init(sendchar_type sendchar_function,
                    frame_handler_type frame_handler_function);
