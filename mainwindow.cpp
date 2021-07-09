@@ -92,7 +92,7 @@ void MainWindow::on_buttonDisconnect_clicked()
 void MainWindow::on_file_dialog_clicked()
 {
     file_name = QFileDialog::getOpenFileName(this,
-        "Open firmware file", "/home", "Firmware file (*.bin)");
+        "Open firmware file", "", "Firmware file (*.bin)");
     if (file_name.isEmpty())
     {
         return;
@@ -128,7 +128,7 @@ void MainWindow::on_buttonSendFile_clicked()
 
     if (hdlc)
     {
-        hdlc->transfer_file(file_opened);
+        hdlc->transfer_file(file_opened, file_name);
         file_opened.clear();
     }
 }
@@ -136,5 +136,6 @@ void MainWindow::on_buttonSendFile_clicked()
 void MainWindow::log_message(const QString &string)
 {
     Q_ASSERT(!string.isEmpty());
+
     ui->text_log->append(string);
 }
