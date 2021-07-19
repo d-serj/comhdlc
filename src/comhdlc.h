@@ -34,7 +34,7 @@ public:
 
 private:
     QString com_port_name;
-    QTimer *timer    = nullptr;
+    QTimer *timer_routine    = nullptr;
     QTimer *timer_tf = nullptr;
     QByteArray file_send;
     QByteArray send_buffer;
@@ -50,7 +50,6 @@ private:
     void send_handshake(void);
     void tf_handle_tick(void);
     void file_send_routine(void);
-    void send_command(uint8_t command);
 
 private slots:
     void comport_data_available();
