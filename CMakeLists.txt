@@ -39,6 +39,8 @@ set(PROJECT_SOURCES
         src/tinyframe/TinyFrame.c
         src/tinyframe/TinyFrame.h
         src/tinyframe/TF_Config.h
+        src/ledindicator.cpp
+        src/ledindicator.h
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
