@@ -6,6 +6,7 @@
 #include <QSerialPort>
 
 #include "comhdlc.h"
+#include "ledindicator.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -38,5 +39,6 @@ private:
     comhdlc *hdlc      = nullptr;
     QString file_name  = "";
     QByteArray file_opened;
+    LedIndicator *led_indicator = nullptr;
 };
 #endif // MAINWINDOW_H

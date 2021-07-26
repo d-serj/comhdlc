@@ -14,6 +14,7 @@
 #include "mainwindow.h"
 #include "./ui_mainwindow.h"
 #include "comhdlc.h"
+#include "ledindicator.h"
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -40,6 +41,9 @@ MainWindow::MainWindow(QWidget *parent)
     ui->comboBox->setInsertPolicy(QComboBox::NoInsert);
 
     ui->text_log->setReadOnly(true);
+
+    led_indicator = new LedIndicator(this);
+    ui->gridLayout->addWidget(led_indicator, 1, 0);
 }
 
 MainWindow::~MainWindow()
@@ -50,6 +54,12 @@ MainWindow::~MainWindow()
     {
         delete hdlc;
         hdlc = nullptr;
+    }
+
+    if (led_indicator)
+    {
+        delete led_indicator;
+        led_indicator = nullptr;
     }
 }
 
@@ -87,6 +97,13 @@ void MainWindow::on_buttonDisconnect_clicked()
         ui->buttonConnect->setEnabled(true);
         ui->comboBox->setEnabled(true);
     }
+
+    if (led_indicator)
+    {
+        led_indicator->setState(false);
+    }
+
+    log_message("[INFO] Device disconnected");
 }
 
 void MainWindow::on_file_dialog_clicked()
@@ -113,8 +130,15 @@ void MainWindow::on_file_dialog_clicked()
 
 void MainWindow::comhdlc_device_connected(bool connected)
 {
-    QString str = connected ? "connected" : "disconnected";
-    qDebug() << "Device " << str;
+    QString res = connected ? "connected" : "disconnected";
+    QString str = "[INFO] Device " + res;
+    qDebug() << str;
+    log_message(str);
+
+    if (led_indicator)
+    {
+        led_indicator->setState(true);
+    }
 }
 
 

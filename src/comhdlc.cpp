@@ -11,6 +11,8 @@
 QSerialPort *comhdlc::serial_port = nullptr;
 quint64 comhdlc::bytes_written    = 0;
 TinyFrame *comhdlc::tf            = nullptr;
+static comhdlc* comhdlc_ptr       = nullptr;
+
 
 static quint32 file_chunk_current = 0;
 static bool bdevice_connected   = false;
@@ -50,7 +52,6 @@ comhdlc::comhdlc(QString comName)
     {
         qDebug() << com_port_name << " is opened";
         serial_port->clear(QSerialPort::AllDirections);
-
         connect(serial_port, &QSerialPort::readyRead, this, &comhdlc::comport_data_available);
         connect(serial_port, &QSerialPort::errorOccurred, this, &comhdlc::comport_error_handler);
         connect(serial_port, &QSerialPort::bytesWritten, this, &comhdlc::comport_bytes_written);
@@ -66,6 +67,11 @@ comhdlc::comhdlc(QString comName)
         timer_routine->start(timeout_ms);
         timer_tf->start(1);
         qDebug() << "QTimer has started with " << timeout_ms << " ms timeout";
+
+        TF_AddTypeListener(tf, eComHdlcAnswer_HandShake, tf_handshake_clbk);
+        TF_AddTypeListener(tf, eCmdWriteFile           , tf_write_file_clbk);
+
+        comhdlc_ptr = this;
     }
 }
 
@@ -105,6 +111,8 @@ comhdlc::~comhdlc()
 
     delete serial_port;
     serial_port = nullptr;
+
+    comhdlc_ptr = nullptr;
 }
 
 bool comhdlc::is_comport_connected(void) const
@@ -115,6 +123,17 @@ bool comhdlc::is_comport_connected(void) const
     }
 
     return false;
+}
+
+void comhdlc::handshake_routine_stop()
+{
+    if (timer_routine)
+    {
+        timer_routine->stop();
+        // Free the timer
+        const bool disconnected = disconnect(timer_routine, &QTimer::timeout, this, &comhdlc::send_handshake);
+        Q_ASSERT(disconnected);
+    }
 }
 
 void comhdlc::transfer_file(const QByteArray &file, QString file_name)
@@ -158,10 +177,7 @@ void comhdlc::transfer_file(const QByteArray &file, QString file_name)
                    );
 
     Q_ASSERT(timer_routine != nullptr);
-    //Q_ASSERT(!timer_routine->isActive());
-
-    const bool disconnected = disconnect(timer_routine, &QTimer::timeout, this, &comhdlc::send_handshake);
-    Q_ASSERT(disconnected);
+    Q_ASSERT(!timer_routine->isActive());
 
     connect(timer_routine, &QTimer::timeout, this, &comhdlc::file_send_routine);
     timer_routine->start(5);
@@ -200,8 +216,7 @@ void comhdlc::comport_data_available()
 
 void comhdlc::comport_bytes_written(quint64 bytes)
 {
-    qDebug() << "Bytes need to be written: " << send_buffer.size()
-             << ". Originally written bytes" << bytes;
+    qDebug() << "Bytes were written";
 }
 
 void comhdlc::comport_error_handler(QSerialPort::SerialPortError serialPortError)
@@ -247,7 +262,14 @@ static TF_Result tf_handshake_clbk(TinyFrame *tf, TF_Msg *msg)
 
     if (msg->type == eComHdlcAnswer_HandShake)
     {
-       bdevice_connected = true;
+        bdevice_connected = true;
+
+        if (comhdlc_ptr)
+        {
+            comhdlc_ptr->handshake_routine_stop();
+            emit comhdlc_ptr->device_connected(true);
+        }
+
        return TF_CLOSE;
     }
 

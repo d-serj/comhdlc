@@ -130,11 +130,23 @@
      </rect>
     </property>
    </widget>
+   <widget class="QWidget" name="gridLayoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>340</x>
+      <y>180</y>
+      <width>31</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <layout class="QGridLayout" name="gridLayout"/>
+   </widget>
    <zorder>selected_file_name</zorder>
    <zorder>groupBox</zorder>
    <zorder>file_dialog</zorder>
    <zorder>buttonSendFile</zorder>
    <zorder>text_log</zorder>
+   <zorder>gridLayoutWidget</zorder>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
@@ -142,7 +154,7 @@
      <x>0</x>
      <y>0</y>
      <width>420</width>
-     <height>26</height>
+     <height>20</height>
     </rect>
    </property>
   </widget>

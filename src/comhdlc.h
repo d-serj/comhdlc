@@ -31,6 +31,7 @@ public:
     ~comhdlc();
     void transfer_file(const QByteArray &file, QString file_name);
     bool is_comport_connected(void) const;
+    void handshake_routine_stop(void);
 
 private:
     QString com_port_name;
