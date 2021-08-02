@@ -155,6 +155,8 @@ void MainWindow::on_buttonSendFile_clicked()
         hdlc->transfer_file(file_opened, file_name);
         file_opened.clear();
     }
+
+    ui->selected_file_name->clear();
 }
 
 void MainWindow::log_message(const QString &string)

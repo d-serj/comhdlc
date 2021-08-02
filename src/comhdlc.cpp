@@ -65,7 +65,7 @@ comhdlc::comhdlc(QString comName)
         connect(timer_tf,      &QTimer::timeout, this, &comhdlc::tf_handle_tick);
         const quint16 timeout_ms = 100;
         timer_routine->start(timeout_ms);
-        timer_tf->start(1);
+        timer_tf->start(1000);
         qDebug() << "QTimer has started with " << timeout_ms << " ms timeout";
 
         TF_AddTypeListener(tf, eComHdlcAnswer_HandShake, tf_handshake_clbk);
@@ -185,6 +185,14 @@ void comhdlc::transfer_file(const QByteArray &file, QString file_name)
 
 void comhdlc::file_send_routine()
 {
+    // All the chunks were sent
+    if (file_chunk_current >= file_chunks.size())
+    {
+        timer_routine->stop();
+        file_chunk_current = 0;
+        return;
+    }
+
     QByteArray chunk        = file_chunks.at(file_chunk_current);
     const quint16 data_size = static_cast<quint16>(chunk.size());
 
@@ -245,6 +253,8 @@ static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg)
 {
     Q_UNUSED(tf);
     Q_ASSERT(msg != nullptr);
+
+    qDebug() << "File is writing ";
 
     if (msg->type == eCmdWriteFile)
     {
