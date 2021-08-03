@@ -40,7 +40,6 @@ private:
     QByteArray file_send;
     QByteArray send_buffer;
     QByteArrayList file_chunks;
-    quint32 file_chunk_current;
 
     static TinyFrame *tf;
     static quint64 bytes_written;
