@@ -141,6 +141,14 @@ void MainWindow::comhdlc_device_connected(bool connected)
     }
 }
 
+void MainWindow::comhdlc_file_transferred(bool transferred)
+{
+    QString res = transferred ? "transferred" : "not transferred";
+    QString str = "[INFO] File was " + res;
+    qDebug() << str;
+    log_message(str);
+}
+
 
 void MainWindow::on_buttonSendFile_clicked()
 {

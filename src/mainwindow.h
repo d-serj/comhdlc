@@ -30,6 +30,8 @@ private slots:
 
     void comhdlc_device_connected(bool connected);
 
+    void comhdlc_file_transferred(bool transferred);
+
     void on_buttonSendFile_clicked();
 
 private:

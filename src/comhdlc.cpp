@@ -11,14 +11,14 @@
 QSerialPort *comhdlc::serial_port = nullptr;
 quint64 comhdlc::bytes_written    = 0;
 TinyFrame *comhdlc::tf            = nullptr;
+
 static comhdlc* comhdlc_ptr       = nullptr;
-
-
 static quint32 file_chunk_current = 0;
-static bool bdevice_connected   = false;
+static bool bdevice_connected     = false;
 
 /** Callbacks for TinyFrame */
 static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg);
+static TF_Result tf_write_file_size_clbk(TinyFrame *tf, TF_Msg *msg);
 static TF_Result tf_handshake_clbk(TinyFrame *tf, TF_Msg *msg);
 
 comhdlc::comhdlc(QString comName)
@@ -59,17 +59,18 @@ comhdlc::comhdlc(QString comName)
         minihdlc_init(send_byte, process_buffer);
         tf = TF_Init(TF_MASTER);
 
-        timer_routine = new QTimer(this);
-        timer_tf      = new QTimer(this);
-        connect(timer_routine, &QTimer::timeout, this, &comhdlc::send_handshake);
-        connect(timer_tf,      &QTimer::timeout, this, &comhdlc::tf_handle_tick);
+        timer_handshake = new QTimer(this);
+        timer_tf        = new QTimer(this);
+        connect(timer_handshake, &QTimer::timeout, this, &comhdlc::send_handshake);
+        connect(timer_tf,        &QTimer::timeout, this, &comhdlc::tf_handle_tick);
         const quint16 timeout_ms = 100;
-        timer_routine->start(timeout_ms);
-        timer_tf->start(1000);
+        timer_handshake->start(timeout_ms);
+        timer_tf->start(1);
         qDebug() << "QTimer has started with " << timeout_ms << " ms timeout";
 
         TF_AddTypeListener(tf, eComHdlcAnswer_HandShake, tf_handshake_clbk);
         TF_AddTypeListener(tf, eCmdWriteFile           , tf_write_file_clbk);
+        TF_AddTypeListener(tf, eCmdWriteFileSize       , tf_write_file_size_clbk);
 
         comhdlc_ptr = this;
     }
@@ -77,11 +78,11 @@ comhdlc::comhdlc(QString comName)
 
 comhdlc::~comhdlc()
 {
-    if (timer_routine != nullptr)
+    if (timer_handshake != nullptr)
     {
-        timer_routine->stop();
-        delete timer_routine;
-        timer_routine = nullptr;
+        timer_handshake->stop();
+        delete timer_handshake;
+        timer_handshake = nullptr;
     }
 
     if (timer_tf != nullptr)
@@ -127,12 +128,9 @@ bool comhdlc::is_comport_connected(void) const
 
 void comhdlc::handshake_routine_stop()
 {
-    if (timer_routine)
+    if (timer_handshake)
     {
-        timer_routine->stop();
-        // Free the timer
-        const bool disconnected = disconnect(timer_routine, &QTimer::timeout, this, &comhdlc::send_handshake);
-        Q_ASSERT(disconnected);
+        timer_handshake->stop();
     }
 }
 
@@ -151,7 +149,7 @@ void comhdlc::transfer_file(const QByteArray &file, QString file_name)
     {
         QByteArray buffer;
 
-        for (quint16 i = 0; i < MINIHDLC_MAX_FRAME_LENGTH; ++i)
+        for (quint16 i = 0; i < MINIHDLC_MAX_FRAME_LENGTH / 2; ++i)
         {
             char byte = 0;
             const qint16 bytes_read = to_send.readRawData(&byte, 1);
@@ -168,39 +166,27 @@ void comhdlc::transfer_file(const QByteArray &file, QString file_name)
 
     const uint32_t file_size = static_cast<uint32_t>(file_send.size());
 
+    // Wait for 10 seconds for the response
     TF_QuerySimple(tf,
-                   eCmdWriteFile,
+                   eCmdWriteFileSize,
                    (const uint8_t*)&file_size,
-                   sizeof (uint32_t),
-                   tf_write_file_clbk,
-                   100
-                   );
-
-    Q_ASSERT(timer_routine != nullptr);
-    Q_ASSERT(!timer_routine->isActive());
-
-    connect(timer_routine, &QTimer::timeout, this, &comhdlc::file_send_routine);
-    timer_routine->start(5);
+                   sizeof(uint32_t),
+                   tf_write_file_size_clbk,
+                   10000);
 }
 
-void comhdlc::file_send_routine()
+void comhdlc::transfer_file_chunk()
 {
-    // All the chunks were sent
+    // The file was transferred
     if (file_chunk_current >= file_chunks.size())
     {
-        timer_routine->stop();
-        file_chunk_current = 0;
+        emit file_was_transferred(true);
         return;
     }
 
     QByteArray chunk        = file_chunks.at(file_chunk_current);
     const quint16 data_size = static_cast<quint16>(chunk.size());
-
-    if (data_size > MINIHDLC_MAX_FRAME_LENGTH)
-    {
-        Q_ASSERT(0);
-        return;
-    }
+    Q_ASSERT(data_size <= MINIHDLC_MAX_FRAME_LENGTH / 2);
 
     send_buffer = chunk;
 
@@ -209,8 +195,9 @@ void comhdlc::file_send_routine()
                    reinterpret_cast<const uint8_t*>(chunk.constData()),
                    data_size,
                    tf_write_file_clbk,
-                   10
-                   );
+                   5000);
+
+    ++file_chunk_current;
 }
 
 void comhdlc::comport_data_available()
@@ -224,7 +211,7 @@ void comhdlc::comport_data_available()
 
 void comhdlc::comport_bytes_written(quint64 bytes)
 {
-    qDebug() << "Bytes were written";
+    qDebug() << bytes << " Bytes were written";
 }
 
 void comhdlc::comport_error_handler(QSerialPort::SerialPortError serialPortError)
@@ -245,8 +232,21 @@ void comhdlc::process_buffer(const uint8_t *buff, uint16_t buff_len)
     qDebug() << "Answer received. Answer len: " << buff_len;
 
     TF_Accept(tf, buff, buff_len);
+}
 
-    serial_port->clear(QSerialPort::AllDirections);
+static TF_Result tf_write_file_size_clbk(TinyFrame *tf, TF_Msg *msg)
+{
+    if (msg->type == eCmdWriteFileSize)
+    {
+        if (comhdlc_ptr)
+        {
+            comhdlc_ptr->transfer_file_chunk();
+        }
+
+        return TF_CLOSE;
+    }
+
+    return TF_NEXT;
 }
 
 static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg)
@@ -254,11 +254,17 @@ static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg)
     Q_UNUSED(tf);
     Q_ASSERT(msg != nullptr);
 
-    qDebug() << "File is writing ";
-
     if (msg->type == eCmdWriteFile)
     {
-        ++file_chunk_current;
+        const char *received = (const char*)msg->data;
+        QString str          = QString::fromUtf8(received, msg->len);
+        qDebug() << "tf_write_file_clbk data " << str;
+
+        if (comhdlc_ptr)
+        {
+            comhdlc_ptr->transfer_file_chunk();
+        }
+
         return TF_STAY;
     }
 
@@ -288,7 +294,7 @@ static TF_Result tf_handshake_clbk(TinyFrame *tf, TF_Msg *msg)
 
 void comhdlc::send_handshake()
 {
-    Q_ASSERT(timer_routine != nullptr);
+    Q_ASSERT(timer_handshake != nullptr);
 
     const quint8 raw[] = { 0xBE, 0xEF };
     TF_QuerySimple(tf,

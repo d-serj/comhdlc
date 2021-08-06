@@ -19,8 +19,9 @@ enum eComHdlcFrameTypes
 enum eComHdlcCommands
 {
     eCmdWriteFile            = 1,
-    eCmdWriteFileFinish      = 2,
-    eComHdlcAnswer_HandShake = 3,
+    eCmdWriteFileSize        = 2,
+    eCmdWriteFileFinish      = 3,
+    eComHdlcAnswer_HandShake = 4,
 };
 
 class comhdlc : public QObject
@@ -30,12 +31,13 @@ public:
     comhdlc(QString comName);
     ~comhdlc();
     void transfer_file(const QByteArray &file, QString file_name);
+    void transfer_file_chunk();
     bool is_comport_connected(void) const;
     void handshake_routine_stop(void);
 
 private:
     QString com_port_name;
-    QTimer *timer_routine    = nullptr;
+    QTimer *timer_handshake    = nullptr;
     QTimer *timer_tf = nullptr;
     QByteArray file_send;
     QByteArray send_buffer;
@@ -49,7 +51,6 @@ private:
     static void process_buffer(const uint8_t* buff, uint16_t buff_len);
     void send_handshake(void);
     void tf_handle_tick(void);
-    void file_send_routine(void);
 
 private slots:
     void comport_data_available();
@@ -58,6 +59,7 @@ private slots:
 
 signals:
     void device_connected(bool connected);
+    void file_was_transferred(bool transferred);
 };
 
 #endif // COMHDLC_H
