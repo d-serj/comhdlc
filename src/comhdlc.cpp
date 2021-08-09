@@ -26,6 +26,7 @@ comhdlc::comhdlc(QString comName)
 {
     if (com_port_name.isEmpty())
     {
+        Q_ASSERT(0);
         return;
     }
 
@@ -78,40 +79,38 @@ comhdlc::comhdlc(QString comName)
 
 comhdlc::~comhdlc()
 {
-    if (timer_handshake != nullptr)
+    if (timer_handshake)
     {
         timer_handshake->stop();
         delete timer_handshake;
         timer_handshake = nullptr;
     }
 
-    if (timer_tf != nullptr)
+    if (timer_tf)
     {
         timer_tf->stop();
         delete timer_tf;
         timer_tf = nullptr;
     }
 
-    if (tf != nullptr)
+    if (tf)
     {
         TF_DeInit(tf);
         tf = nullptr;
     }
 
-    if (serial_port == nullptr)
+    if (serial_port)
     {
-        return;
-    }
+        if (serial_port->isOpen())
+        {
+            qDebug() << "Serial port " << serial_port->portName() << " closed";
+            serial_port->clear(QSerialPort::AllDirections);
+            serial_port->close();
+        }
 
-    if (serial_port->isOpen())
-    {
-        qDebug() << "Serial port " << serial_port->portName() << " closed";
-        serial_port->clear(QSerialPort::AllDirections);
-        serial_port->close();
+        delete serial_port;
+        serial_port = nullptr;
     }
-
-    delete serial_port;
-    serial_port = nullptr;
 
     comhdlc_ptr = nullptr;
 }
@@ -186,7 +185,7 @@ void comhdlc::transfer_file_chunk()
 
     QByteArray chunk        = file_chunks.at(file_chunk_current);
     const quint16 data_size = static_cast<quint16>(chunk.size());
-    Q_ASSERT(data_size <= MINIHDLC_MAX_FRAME_LENGTH / 2);
+    Q_ASSERT(data_size <= (MINIHDLC_MAX_FRAME_LENGTH / 2));
 
     send_buffer = chunk;
 

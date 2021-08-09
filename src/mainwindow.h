@@ -26,13 +26,13 @@ private slots:
 
     void on_buttonConnect_clicked();
 
-    void on_file_dialog_clicked();
-
     void comhdlc_device_connected(bool connected);
 
     void comhdlc_file_transferred(bool transferred);
 
-    void on_buttonSendFile_clicked();
+    void on_button_send_file_clicked();
+
+    void on_button_file_dialog_clicked();
 
 private:
     void log_message(const QString &string);

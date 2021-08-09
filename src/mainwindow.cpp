@@ -44,6 +44,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     led_indicator = new LedIndicator(this);
     ui->gridLayout->addWidget(led_indicator, 1, 0);
+
+    ui->file_send_progress->reset();
+    ui->file_send_progress->hide();
+    ui->file_send_progress->setMinimum(0);
+    ui->file_send_progress->setMaximum(100);
 }
 
 MainWindow::~MainWindow()
@@ -74,7 +79,8 @@ void MainWindow::on_buttonConnect_clicked()
             ui->buttonConnect->setEnabled(false);
             ui->buttonDisconnect->setEnabled(true);
             ui->comboBox->setEnabled(false);
-            connect(hdlc, &comhdlc::device_connected, this, &MainWindow::comhdlc_device_connected);
+            connect(hdlc, &comhdlc::device_connected,     this, &MainWindow::comhdlc_device_connected);
+            connect(hdlc, &comhdlc::file_was_transferred, this, &MainWindow::comhdlc_file_transferred);
         }
         else
         {
@@ -106,7 +112,57 @@ void MainWindow::on_buttonDisconnect_clicked()
     log_message("[INFO] Device disconnected");
 }
 
-void MainWindow::on_file_dialog_clicked()
+void MainWindow::comhdlc_device_connected(bool connected)
+{
+    QString res = connected ? "connected" : "disconnected";
+    QString str = "[INFO] Device " + res;
+    qDebug() << str;
+    log_message(str);
+
+    if (led_indicator)
+    {
+        led_indicator->setState(true);
+    }
+}
+
+void MainWindow::comhdlc_file_transferred(bool transferred)
+{
+    QString res = transferred ? "transferred" : "not transferred";
+    QString str = "[INFO] File was " + res;
+    qDebug() << str;
+    log_message(str);
+
+    ui->file_send_progress->setValue(100);
+}
+
+void MainWindow::log_message(const QString &string)
+{
+    Q_ASSERT(!string.isEmpty());
+
+    ui->text_log->append(string);
+}
+
+void MainWindow::on_button_send_file_clicked()
+{
+    if (file_opened.isEmpty())
+    {
+        log_message("[ERROR] File is not opened");
+    }
+    else if (hdlc)
+    {
+        hdlc->transfer_file(file_opened, file_name);
+        file_opened.clear();
+        ui->file_send_progress->show();
+        ui->selected_file_name->clear();
+    }
+    else
+    {
+        log_message("[ERROR] Device is not connected yet");
+    }
+}
+
+
+void MainWindow::on_button_file_dialog_clicked()
 {
     file_name = QFileDialog::getOpenFileName(this,
         "Open firmware file", "", "Firmware file (*.bin)");
@@ -127,49 +183,3 @@ void MainWindow::on_file_dialog_clicked()
     }
 }
 
-
-void MainWindow::comhdlc_device_connected(bool connected)
-{
-    QString res = connected ? "connected" : "disconnected";
-    QString str = "[INFO] Device " + res;
-    qDebug() << str;
-    log_message(str);
-
-    if (led_indicator)
-    {
-        led_indicator->setState(true);
-    }
-}
-
-void MainWindow::comhdlc_file_transferred(bool transferred)
-{
-    QString res = transferred ? "transferred" : "not transferred";
-    QString str = "[INFO] File was " + res;
-    qDebug() << str;
-    log_message(str);
-}
-
-
-void MainWindow::on_buttonSendFile_clicked()
-{
-    if (file_opened.isEmpty())
-    {
-        log_message("[ERROR] File is not opened");
-        return;
-    }
-
-    if (hdlc)
-    {
-        hdlc->transfer_file(file_opened, file_name);
-        file_opened.clear();
-    }
-
-    ui->selected_file_name->clear();
-}
-
-void MainWindow::log_message(const QString &string)
-{
-    Q_ASSERT(!string.isEmpty());
-
-    ui->text_log->append(string);
-}
