@@ -60,6 +60,7 @@ private slots:
 signals:
     void device_connected(bool connected);
     void file_was_transferred(bool transferred);
+    void file_chunk_transferred(quint16 chunk_size);
 };
 
 #endif // COMHDLC_H

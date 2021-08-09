@@ -30,6 +30,8 @@ private slots:
 
     void comhdlc_file_transferred(bool transferred);
 
+    void comhdlc_chunk_transferred(quint16 chunk_size);
+
     void on_button_send_file_clicked();
 
     void on_button_file_dialog_clicked();
@@ -42,5 +44,6 @@ private:
     QString file_name  = "";
     QByteArray file_opened;
     LedIndicator *led_indicator = nullptr;
+    quint32 file_size = 0;
 };
 #endif // MAINWINDOW_H

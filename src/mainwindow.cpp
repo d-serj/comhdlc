@@ -48,7 +48,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->file_send_progress->reset();
     ui->file_send_progress->hide();
     ui->file_send_progress->setMinimum(0);
-    ui->file_send_progress->setMaximum(100);
 }
 
 MainWindow::~MainWindow()
@@ -81,6 +80,7 @@ void MainWindow::on_buttonConnect_clicked()
             ui->comboBox->setEnabled(false);
             connect(hdlc, &comhdlc::device_connected,     this, &MainWindow::comhdlc_device_connected);
             connect(hdlc, &comhdlc::file_was_transferred, this, &MainWindow::comhdlc_file_transferred);
+            connect(hdlc, &comhdlc::file_chunk_transferred, this, &MainWindow::comhdlc_chunk_transferred);
         }
         else
         {
@@ -102,14 +102,14 @@ void MainWindow::on_buttonDisconnect_clicked()
         ui->buttonDisconnect->setEnabled(false);
         ui->buttonConnect->setEnabled(true);
         ui->comboBox->setEnabled(true);
+        ui->file_send_progress->hide();
+        log_message("[INFO] Device disconnected");
     }
 
     if (led_indicator)
     {
         led_indicator->setState(false);
     }
-
-    log_message("[INFO] Device disconnected");
 }
 
 void MainWindow::comhdlc_device_connected(bool connected)
@@ -121,7 +121,7 @@ void MainWindow::comhdlc_device_connected(bool connected)
 
     if (led_indicator)
     {
-        led_indicator->setState(true);
+        led_indicator->setState(connected);
     }
 }
 
@@ -133,6 +133,12 @@ void MainWindow::comhdlc_file_transferred(bool transferred)
     log_message(str);
 
     ui->file_send_progress->setValue(100);
+}
+
+void MainWindow::comhdlc_chunk_transferred(quint16 chunk_size)
+{
+    file_size += chunk_size;
+    ui->file_send_progress->setValue(file_size);
 }
 
 void MainWindow::log_message(const QString &string)
@@ -154,6 +160,7 @@ void MainWindow::on_button_send_file_clicked()
         file_opened.clear();
         ui->file_send_progress->show();
         ui->selected_file_name->clear();
+        file_size = 0;
     }
     else
     {
@@ -179,7 +186,10 @@ void MainWindow::on_button_file_dialog_clicked()
         file_opened = file.readAll();
         qDebug() << "File " << file_name << " opened. Size is " << file_opened.size() << " " << file.size();
         ui->selected_file_name->setText(file_name);
+        ui->file_send_progress->setMaximum(file.size());
         file.close();
     }
+
+    ui->file_send_progress->setValue(0);
 }
 

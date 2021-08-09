@@ -187,6 +187,8 @@ void comhdlc::transfer_file_chunk()
     const quint16 data_size = static_cast<quint16>(chunk.size());
     Q_ASSERT(data_size <= (MINIHDLC_MAX_FRAME_LENGTH / 2));
 
+    emit file_chunk_transferred(data_size);
+
     send_buffer = chunk;
 
     TF_QuerySimple(tf,
