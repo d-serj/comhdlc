@@ -33,8 +33,6 @@ set(PROJECT_SOURCES
         src/comhdlc.cpp
         src/mainwindow.h
         src/mainwindow.ui
-        src/minihdlc.c
-        src/minihdlc.h
         src/comhdlc.h
         src/tinyframe/TinyFrame.c
         src/tinyframe/TinyFrame.h

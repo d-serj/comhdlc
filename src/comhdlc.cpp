@@ -1,5 +1,4 @@
 #include "comhdlc.h"
-#include "minihdlc.h"
 
 #include <QSerialPort>
 #include <QDebug>
@@ -57,7 +56,6 @@ comhdlc::comhdlc(QString comName)
         connect(serial_port, &QSerialPort::errorOccurred, this, &comhdlc::comport_error_handler);
         connect(serial_port, &QSerialPort::bytesWritten, this, &comhdlc::comport_bytes_written);
 
-        minihdlc_init(send_byte, process_buffer);
         tf = TF_Init(TF_MASTER);
 
         timer_handshake = new QTimer(this);
@@ -148,7 +146,7 @@ void comhdlc::transfer_file(const QByteArray &file, QString file_name)
     {
         QByteArray buffer;
 
-        for (quint16 i = 0; i < MINIHDLC_MAX_FRAME_LENGTH / 2; ++i)
+        for (quint16 i = 0; i < TF_SENDBUF_LEN; ++i)
         {
             char byte = 0;
             const qint16 bytes_read = to_send.readRawData(&byte, 1);
@@ -185,7 +183,7 @@ void comhdlc::transfer_file_chunk()
 
     QByteArray chunk        = file_chunks.at(file_chunk_current);
     const quint16 data_size = static_cast<quint16>(chunk.size());
-    Q_ASSERT(data_size <= (MINIHDLC_MAX_FRAME_LENGTH / 2));
+    Q_ASSERT(data_size <= TF_SENDBUF_LEN);
 
     emit file_chunk_transferred(data_size);
 
@@ -206,7 +204,8 @@ void comhdlc::comport_data_available()
     char byte = 0;
     while(serial_port->read(&byte, 1) > 0)
     {
-        minihdlc_char_receiver((quint8)byte);
+        Q_ASSERT(tf);
+        TF_AcceptChar(tf, (quint8)byte);
     }
 }
 
@@ -220,19 +219,15 @@ void comhdlc::comport_error_handler(QSerialPort::SerialPortError serialPortError
     qDebug() << "Serial port " << com_port_name << " error occured " << serialPortError;
 }
 
-void comhdlc::send_byte(uint8_t data)
+void comhdlc::comport_send_buff(const uint8_t *data, quint16 data_len)
 {
-    serial_port->write((const char*)&data, 1);
-}
+    Q_ASSERT(data);
+    Q_ASSERT(data_len > 0);
 
-void comhdlc::process_buffer(const uint8_t *buff, uint16_t buff_len)
-{
-    Q_ASSERT(buff != nullptr);
-    Q_ASSERT(buff_len > 0);
-
-    qDebug() << "[TF] Answer received. Answer len: " << buff_len;
-
-    TF_Accept(tf, buff, buff_len);
+    if (serial_port)
+    {
+        serial_port->write((const char*)data, data_len);
+    }
 }
 
 static TF_Result tf_write_file_size_clbk(TinyFrame *tf, TF_Msg *msg)
@@ -320,5 +315,8 @@ void TF_WriteImpl(TinyFrame *tf, const uint8_t *buff, uint32_t len)
     Q_UNUSED(tf);
     Q_ASSERT(buff != nullptr);
 
-    minihdlc_send_frame(buff, len);
+    if (comhdlc_ptr)
+    {
+        comhdlc_ptr->comport_send_buff(buff, len);
+    }
 }
