@@ -38,6 +38,7 @@ private slots:
 
 private:
     void log_message(const QString &string);
+    void disconnect_device();
 
     Ui::MainWindow *ui = nullptr;
     comhdlc *hdlc      = nullptr;

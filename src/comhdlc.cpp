@@ -230,7 +230,7 @@ void comhdlc::process_buffer(const uint8_t *buff, uint16_t buff_len)
     Q_ASSERT(buff != nullptr);
     Q_ASSERT(buff_len > 0);
 
-    qDebug() << "Answer received. Answer len: " << buff_len;
+    qDebug() << "[TF] Answer received. Answer len: " << buff_len;
 
     TF_Accept(tf, buff, buff_len);
 }

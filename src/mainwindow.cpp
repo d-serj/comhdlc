@@ -8,6 +8,7 @@
 #include <QList>
 #include <QDebug>
 #include <QFile>
+#include <QFileInfo>
 #include <QFileDialog>
 #include <QMessageBox>
 
@@ -95,21 +96,7 @@ void MainWindow::on_buttonConnect_clicked()
 
 void MainWindow::on_buttonDisconnect_clicked()
 {
-    if (hdlc != nullptr)
-    {
-        delete hdlc;
-        hdlc = nullptr;
-        ui->buttonDisconnect->setEnabled(false);
-        ui->buttonConnect->setEnabled(true);
-        ui->comboBox->setEnabled(true);
-        ui->file_send_progress->hide();
-        log_message("[INFO] Device disconnected");
-    }
-
-    if (led_indicator)
-    {
-        led_indicator->setState(false);
-    }
+    disconnect_device();
 }
 
 void MainWindow::comhdlc_device_connected(bool connected)
@@ -119,9 +106,13 @@ void MainWindow::comhdlc_device_connected(bool connected)
     qDebug() << str;
     log_message(str);
 
-    if (led_indicator)
+    if (!connected)
     {
-        led_indicator->setState(connected);
+        disconnect_device();
+    }
+    else if (led_indicator)
+    {
+        led_indicator->setState(true);
     }
 }
 
@@ -129,10 +120,7 @@ void MainWindow::comhdlc_file_transferred(bool transferred)
 {
     QString res = transferred ? "transferred" : "not transferred";
     QString str = "[INFO] File was " + res;
-    qDebug() << str;
     log_message(str);
-
-    ui->file_send_progress->setValue(100);
 }
 
 void MainWindow::comhdlc_chunk_transferred(quint16 chunk_size)
@@ -145,7 +133,29 @@ void MainWindow::log_message(const QString &string)
 {
     Q_ASSERT(!string.isEmpty());
 
+    qDebug() << string;
     ui->text_log->append(string);
+}
+
+void MainWindow::disconnect_device()
+{
+    if (hdlc != nullptr)
+    {
+        delete hdlc;
+        hdlc = nullptr;
+
+        ui->buttonDisconnect->setEnabled(false);
+        ui->buttonConnect->setEnabled(true);
+        ui->comboBox->setEnabled(true);
+        ui->file_send_progress->hide();
+
+        log_message("[INFO] Device disconnected");
+    }
+
+    if (led_indicator)
+    {
+        led_indicator->setState(false);
+    }
 }
 
 void MainWindow::on_button_send_file_clicked()
@@ -159,6 +169,7 @@ void MainWindow::on_button_send_file_clicked()
         hdlc->transfer_file(file_opened, file_name);
         file_opened.clear();
         ui->file_send_progress->show();
+        ui->button_send_file->setEnabled(false);
         ui->selected_file_name->clear();
         file_size = 0;
     }
@@ -184,12 +195,19 @@ void MainWindow::on_button_file_dialog_clicked()
     {
         file_opened.clear();
         file_opened = file.readAll();
-        qDebug() << "File " << file_name << " opened. Size is " << file_opened.size() << " " << file.size();
+
+        QFileInfo fil_inf(file);
+
+        const QString log_msg = "[INFO] File " + fil_inf.fileName() + " opened. Size is " + QString::number(file_opened.size())
+                + " bytes";
+        log_message(log_msg);
+
+        file.close();
+
         ui->selected_file_name->setText(file_name);
         ui->file_send_progress->setMaximum(file.size());
-        file.close();
+        ui->file_send_progress->setValue(0);
+        ui->button_send_file->setEnabled(true);
     }
-
-    ui->file_send_progress->setValue(0);
 }
 
