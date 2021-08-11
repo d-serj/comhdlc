@@ -7,13 +7,7 @@
 #include <QByteArrayList>
 #include <tinyframe/TinyFrame.h>
 
-QSerialPort *comhdlc::serial_port = nullptr;
-quint64 comhdlc::bytes_written    = 0;
-TinyFrame *comhdlc::tf            = nullptr;
-
-static comhdlc* comhdlc_ptr       = nullptr;
-static quint32 file_chunk_current = 0;
-static bool bdevice_connected     = false;
+static comhdlc* comhdlc_ptr = nullptr;
 
 /** Callbacks for TinyFrame */
 static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg);
@@ -21,7 +15,8 @@ static TF_Result tf_write_file_size_clbk(TinyFrame *tf, TF_Msg *msg);
 static TF_Result tf_handshake_clbk(TinyFrame *tf, TF_Msg *msg);
 
 comhdlc::comhdlc(QString comName)
-    : com_port_name(comName)
+    : com_port_name(comName),
+      serial_port(new QSerialPort(this))
 {
     if (com_port_name.isEmpty())
     {
@@ -29,11 +24,9 @@ comhdlc::comhdlc(QString comName)
         return;
     }
 
-    serial_port = new QSerialPort(this);
-
     if (serial_port->isOpen())
     {
-        qDebug() << "Serial port " << serial_port->portName() << " is already opened";
+        qDebug() << "[ERROR] Serial port " << serial_port->portName() << " is already opened";
         delete serial_port;
         serial_port = nullptr;
         return;
@@ -41,37 +34,39 @@ comhdlc::comhdlc(QString comName)
 
     serial_port->setPortName(com_port_name);
     serial_port->setBaudRate(QSerialPort::Baud19200);
-    if (serial_port->open(QIODevice::ReadWrite) == false)
+    if (serial_port->open(QIODevice::ReadWrite))
     {
-        qDebug() << com_port_name << " cannot be opened";
-        qDebug() << "Error: " << serial_port->error();
-        delete serial_port;
-        serial_port = nullptr;
-    }
-    else
-    {
-        qDebug() << com_port_name << " is opened";
+        qDebug() << "[INFO] " << com_port_name << " is opened";
         serial_port->clear(QSerialPort::AllDirections);
         connect(serial_port, &QSerialPort::readyRead, this, &comhdlc::comport_data_available);
         connect(serial_port, &QSerialPort::errorOccurred, this, &comhdlc::comport_error_handler);
         connect(serial_port, &QSerialPort::bytesWritten, this, &comhdlc::comport_bytes_written);
 
-        tf = TF_Init(TF_MASTER);
+        tiny_frame = TF_Init(TF_MASTER);
 
         timer_handshake = new QTimer(this);
         timer_tf        = new QTimer(this);
-        connect(timer_handshake, &QTimer::timeout, this, &comhdlc::send_handshake);
         connect(timer_tf,        &QTimer::timeout, this, &comhdlc::tf_handle_tick);
+        connect(timer_handshake, &QTimer::timeout, this, &comhdlc::send_handshake);
+
+        timer_tf->start(1);
+
         const quint16 timeout_ms = 100;
         timer_handshake->start(timeout_ms);
-        timer_tf->start(1);
-        qDebug() << "QTimer has started with " << timeout_ms << " ms timeout";
+        qDebug() << "[INFO] Handshake is started with " << timeout_ms << " ms timeout";
 
-        TF_AddTypeListener(tf, eComHdlcAnswer_HandShake, tf_handshake_clbk);
-        TF_AddTypeListener(tf, eCmdWriteFile           , tf_write_file_clbk);
-        TF_AddTypeListener(tf, eCmdWriteFileSize       , tf_write_file_size_clbk);
+        // Register Tiny Frame callbacks
+        TF_AddTypeListener(tiny_frame, eComHdlcAnswer_HandShake, tf_handshake_clbk);
+        TF_AddTypeListener(tiny_frame, eCmdWriteFile           , tf_write_file_clbk);
+        TF_AddTypeListener(tiny_frame, eCmdWriteFileSize       , tf_write_file_size_clbk);
 
         comhdlc_ptr = this;
+    }
+    else
+    {
+        qDebug() << "[ERROR] " << com_port_name << " cannot be opened. Error: " << serial_port->error();
+        delete serial_port;
+        serial_port = nullptr;
     }
 }
 
@@ -91,17 +86,17 @@ comhdlc::~comhdlc()
         timer_tf = nullptr;
     }
 
-    if (tf)
+    if (tiny_frame)
     {
-        TF_DeInit(tf);
-        tf = nullptr;
+        TF_DeInit(tiny_frame);
+        tiny_frame = nullptr;
     }
 
     if (serial_port)
     {
         if (serial_port->isOpen())
         {
-            qDebug() << "Serial port " << serial_port->portName() << " closed";
+            qDebug() << "[INFO] Serial port " << serial_port->portName() << " closed";
             serial_port->clear(QSerialPort::AllDirections);
             serial_port->close();
         }
@@ -164,7 +159,7 @@ void comhdlc::transfer_file(const QByteArray &file, QString file_name)
     const uint32_t file_size = static_cast<uint32_t>(file_send.size());
 
     // Wait for 10 seconds for the response
-    TF_QuerySimple(tf,
+    TF_QuerySimple(tiny_frame,
                    eCmdWriteFileSize,
                    (const uint8_t*)&file_size,
                    sizeof(uint32_t),
@@ -189,7 +184,7 @@ void comhdlc::transfer_file_chunk()
 
     send_buffer = chunk;
 
-    TF_QuerySimple(tf,
+    TF_QuerySimple(tiny_frame,
                    eCmdWriteFile,
                    reinterpret_cast<const uint8_t*>(chunk.constData()),
                    data_size,
@@ -201,22 +196,28 @@ void comhdlc::transfer_file_chunk()
 
 void comhdlc::comport_data_available()
 {
-    char byte = 0;
+    quint32 bytes_received = 0;
+    char byte              = 0;
+
     while(serial_port->read(&byte, 1) > 0)
     {
-        Q_ASSERT(tf);
-        TF_AcceptChar(tf, (quint8)byte);
+        Q_ASSERT(tiny_frame);
+        TF_AcceptChar(tiny_frame, (quint8)byte);
+
+        ++bytes_received;
     }
+
+    qDebug() << "[INFO] " << bytes_received << " bytes were received";
 }
 
 void comhdlc::comport_bytes_written(quint64 bytes)
 {
-    qDebug() << bytes << " Bytes were written";
+    qDebug() << "[INFO] " << bytes << " Bytes were written";
 }
 
 void comhdlc::comport_error_handler(QSerialPort::SerialPortError serialPortError)
 {
-    qDebug() << "Serial port " << com_port_name << " error occured " << serialPortError;
+    qDebug() << "[ERROR] Serial port " << com_port_name << " error occured " << serialPortError;
 }
 
 void comhdlc::comport_send_buff(const uint8_t *data, quint16 data_len)
@@ -229,6 +230,30 @@ void comhdlc::comport_send_buff(const uint8_t *data, quint16 data_len)
         serial_port->write((const char*)data, data_len);
     }
 }
+
+void comhdlc::send_handshake()
+{
+    Q_ASSERT(timer_handshake != nullptr);
+
+    const quint8 raw[] = { 0xBE, 0xEF };
+    TF_QuerySimple(tiny_frame,
+                   eComHdlcAnswer_HandShake,
+                   raw,
+                   sizeof (raw),
+                   tf_handshake_clbk,
+                   100
+                   );
+}
+
+void comhdlc::tf_handle_tick()
+{
+    Q_ASSERT(tiny_frame);
+    TF_Tick(tiny_frame);
+}
+
+//
+// TF callbacks
+//
 
 static TF_Result tf_write_file_size_clbk(TinyFrame *tf, TF_Msg *msg)
 {
@@ -254,7 +279,7 @@ static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg)
     {
         const char *received = (const char*)msg->data;
         QString str          = QString::fromUtf8(received, msg->len);
-        qDebug() << "tf_write_file_clbk data " << str;
+        qDebug() << "[INFO] tf_write_file_clbk data " << str;
 
         if (comhdlc_ptr)
         {
@@ -274,8 +299,6 @@ static TF_Result tf_handshake_clbk(TinyFrame *tf, TF_Msg *msg)
 
     if (msg->type == eComHdlcAnswer_HandShake)
     {
-        bdevice_connected = true;
-
         if (comhdlc_ptr)
         {
             comhdlc_ptr->handshake_routine_stop();
@@ -286,26 +309,6 @@ static TF_Result tf_handshake_clbk(TinyFrame *tf, TF_Msg *msg)
     }
 
     return TF_NEXT;
-}
-
-void comhdlc::send_handshake()
-{
-    Q_ASSERT(timer_handshake != nullptr);
-
-    const quint8 raw[] = { 0xBE, 0xEF };
-    TF_QuerySimple(tf,
-                   eComHdlcAnswer_HandShake,
-                   raw,
-                   sizeof (raw),
-                   tf_handshake_clbk,
-                   100
-                   );
-}
-
-void comhdlc::tf_handle_tick()
-{
-    Q_ASSERT(tf);
-    TF_Tick(tf);
 }
 
 extern "C" void TF_WriteImpl(TinyFrame *tf, const uint8_t *buff, uint32_t len);

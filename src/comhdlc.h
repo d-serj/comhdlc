@@ -34,19 +34,18 @@ public:
     void transfer_file_chunk();
     bool is_comport_connected(void) const;
     void handshake_routine_stop(void);
-    static void comport_send_buff(const uint8_t *data, quint16 data_len);
+    void comport_send_buff(const uint8_t *data, quint16 data_len);
 
 private:
     QString com_port_name;
-    QTimer *timer_handshake    = nullptr;
-    QTimer *timer_tf = nullptr;
+    QTimer *timer_handshake = nullptr;
+    QTimer *timer_tf        = nullptr;
     QByteArray file_send;
     QByteArray send_buffer;
     QByteArrayList file_chunks;
-
-    static TinyFrame *tf;
-    static quint64 bytes_written;
-    static QSerialPort *serial_port;
+    QSerialPort *serial_port;
+    quint32 file_chunk_current = 0;
+    TinyFrame *tiny_frame      = nullptr;
 
     void send_handshake(void);
     void tf_handle_tick(void);
