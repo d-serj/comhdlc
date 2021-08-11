@@ -40,7 +40,7 @@ extern "C"
 #define TF_CKSUM_TYPE TF_CKSUM_CRC16
 
 // Use a SOF byte to mark the start of a frame
-#define TF_USE_SOF_BYTE 0
+#define TF_USE_SOF_BYTE 1
 // Value of the SOF byte (if TF_USE_SOF_BYTE == 1)
 #define TF_SOF_BYTE     0x01
 
@@ -56,7 +56,7 @@ typedef uint8_t TF_COUNT;
 
 // Maximum received payload size (static buffer)
 // Larger payloads will be rejected.
-#define TF_MAX_PAYLOAD_RX 512
+#define TF_MAX_PAYLOAD_RX 1024
 // Size of the sending buffer. Larger payloads will be split to pieces and sent
 // in multiple calls to the write function. This can be lowered to reduce RAM usage.
 #define TF_SENDBUF_LEN    512

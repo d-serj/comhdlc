@@ -34,6 +34,7 @@ public:
     void transfer_file_chunk();
     bool is_comport_connected(void) const;
     void handshake_routine_stop(void);
+    static void comport_send_buff(const uint8_t *data, quint16 data_len);
 
 private:
     QString com_port_name;
@@ -47,8 +48,6 @@ private:
     static quint64 bytes_written;
     static QSerialPort *serial_port;
 
-    static void send_byte(uint8_t data);
-    static void process_buffer(const uint8_t* buff, uint16_t buff_len);
     void send_handshake(void);
     void tf_handle_tick(void);
 
