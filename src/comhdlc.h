@@ -1,3 +1,7 @@
+/**
+ * @file comhdlc.h
+ */
+
 #ifndef COMHDLC_H
 #define COMHDLC_H
 

@@ -1,3 +1,7 @@
+/**
+ * @file comhdlc.cpp
+ */
+
 #include "comhdlc.h"
 
 #include <QSerialPort>
@@ -277,10 +281,6 @@ static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg)
 
     if (msg->type == eCmdWriteFile)
     {
-        const char *received = (const char*)msg->data;
-        QString str          = QString::fromUtf8(received, msg->len);
-        qDebug() << "[INFO] tf_write_file_clbk data " << str;
-
         if (comhdlc_ptr)
         {
             comhdlc_ptr->transfer_file_chunk();
