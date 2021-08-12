@@ -11,7 +11,7 @@
 #include <QByteArrayList>
 #include <tinyframe/TinyFrame.h>
 
-static comhdlc* comhdlc_ptr = nullptr;
+comhdlc* comhdlc::comhdlc_ptr = nullptr;
 
 /** Callbacks for TinyFrame */
 static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg);
@@ -19,8 +19,8 @@ static TF_Result tf_write_file_size_clbk(TinyFrame *tf, TF_Msg *msg);
 static TF_Result tf_handshake_clbk(TinyFrame *tf, TF_Msg *msg);
 
 comhdlc::comhdlc(QString comName)
-    : com_port_name(comName),
-      serial_port(new QSerialPort(this))
+    : com_port_name{comName},
+      serial_port{new QSerialPort(this)}
 {
     if (com_port_name.isEmpty())
     {
@@ -224,7 +224,7 @@ void comhdlc::comport_error_handler(QSerialPort::SerialPortError serialPortError
     qDebug() << "[ERROR] Serial port " << com_port_name << " error occured " << serialPortError;
 }
 
-void comhdlc::comport_send_buff(const uint8_t *data, quint16 data_len)
+void comhdlc::comport_send_buff(const quint8 *data, quint16 data_len)
 {
     Q_ASSERT(data);
     Q_ASSERT(data_len > 0);
@@ -255,6 +255,11 @@ void comhdlc::tf_handle_tick()
     TF_Tick(tiny_frame);
 }
 
+comhdlc *comhdlc_get_instance()
+{
+    return comhdlc::comhdlc_ptr;
+}
+
 //
 // TF callbacks
 //
@@ -263,9 +268,9 @@ static TF_Result tf_write_file_size_clbk(TinyFrame *tf, TF_Msg *msg)
 {
     if (msg->type == eCmdWriteFileSize)
     {
-        if (comhdlc_ptr)
+        if (comhdlc_get_instance())
         {
-            comhdlc_ptr->transfer_file_chunk();
+            comhdlc_get_instance()->transfer_file_chunk();
         }
 
         return TF_CLOSE;
@@ -281,9 +286,9 @@ static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg)
 
     if (msg->type == eCmdWriteFile)
     {
-        if (comhdlc_ptr)
+        if (comhdlc_get_instance())
         {
-            comhdlc_ptr->transfer_file_chunk();
+            comhdlc_get_instance()->transfer_file_chunk();
         }
 
         return TF_STAY;
@@ -299,10 +304,10 @@ static TF_Result tf_handshake_clbk(TinyFrame *tf, TF_Msg *msg)
 
     if (msg->type == eComHdlcAnswer_HandShake)
     {
-        if (comhdlc_ptr)
+        if (comhdlc_get_instance())
         {
-            comhdlc_ptr->handshake_routine_stop();
-            emit comhdlc_ptr->device_connected(true);
+            comhdlc_get_instance()->handshake_routine_stop();
+            emit comhdlc_get_instance()->device_connected(true);
         }
 
        return TF_CLOSE;
@@ -318,8 +323,8 @@ void TF_WriteImpl(TinyFrame *tf, const uint8_t *buff, uint32_t len)
     Q_UNUSED(tf);
     Q_ASSERT(buff != nullptr);
 
-    if (comhdlc_ptr)
+    if (comhdlc_get_instance())
     {
-        comhdlc_ptr->comport_send_buff(buff, len);
+        comhdlc_get_instance()->comport_send_buff(buff, len);
     }
 }

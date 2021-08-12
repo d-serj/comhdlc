@@ -38,7 +38,8 @@ public:
     void transfer_file_chunk();
     bool is_comport_connected(void) const;
     void handshake_routine_stop(void);
-    void comport_send_buff(const uint8_t *data, quint16 data_len);
+    void comport_send_buff(const quint8 *data, quint16 data_len);
+    friend comhdlc *comhdlc_get_instance();
 
 private:
     QString com_port_name;
@@ -50,6 +51,8 @@ private:
     QSerialPort *serial_port;
     quint32 file_chunk_current = 0;
     TinyFrame *tiny_frame      = nullptr;
+
+    static comhdlc* comhdlc_ptr;
 
     void send_handshake(void);
     void tf_handle_tick(void);
