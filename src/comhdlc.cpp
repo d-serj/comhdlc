@@ -37,7 +37,11 @@ comhdlc::comhdlc(QString comName)
     }
 
     serial_port->setPortName(com_port_name);
-    serial_port->setBaudRate(QSerialPort::Baud19200);
+    serial_port->setBaudRate(QSerialPort::Baud38400);
+    serial_port->setDataBits(QSerialPort::Data8);
+    serial_port->setParity(QSerialPort::NoParity);
+    serial_port->setStopBits(QSerialPort::OneStop);
+
     if (serial_port->open(QIODevice::ReadWrite))
     {
         qDebug() << "[INFO] " << com_port_name << " is opened";
@@ -182,7 +186,6 @@ void comhdlc::transfer_file_chunk()
 
     QByteArray chunk        = file_chunks.at(file_chunk_current);
     const quint16 data_size = static_cast<quint16>(chunk.size());
-    Q_ASSERT(data_size <= TF_SENDBUF_LEN);
 
     emit file_chunk_transferred(data_size);
 
@@ -193,7 +196,7 @@ void comhdlc::transfer_file_chunk()
                    reinterpret_cast<const uint8_t*>(chunk.constData()),
                    data_size,
                    tf_write_file_clbk,
-                   5000);
+                   2000);
 
     ++file_chunk_current;
 }
@@ -205,7 +208,6 @@ void comhdlc::comport_data_available()
 
     while(serial_port->read(&byte, 1) > 0)
     {
-        Q_ASSERT(tiny_frame);
         TF_AcceptChar(tiny_frame, (quint8)byte);
 
         ++bytes_received;
@@ -265,7 +267,7 @@ comhdlc *comhdlc_get_instance()
 //
 
 static TF_Result tf_write_file_size_clbk(TinyFrame *tf, TF_Msg *msg)
-{
+{   
     if (msg->type == eCmdWriteFileSize)
     {
         if (comhdlc_get_instance())
@@ -290,6 +292,8 @@ static TF_Result tf_write_file_clbk(TinyFrame *tf, TF_Msg *msg)
         {
             comhdlc_get_instance()->transfer_file_chunk();
         }
+
+        qDebug() << "[INFO] File write callback TinyFrame";
 
         return TF_STAY;
     }
